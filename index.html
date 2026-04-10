@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>🌾 Smart Farmer Pro | Farm to Market Connect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, 'Segoe UI', 'Roboto', sans-serif;
+        }
+        body {
+            background: #eef5e8;
+            padding-bottom: 20px;
+        }
+        .app-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 30px rgba(0,30,0,0.06);
+            border-radius: 0 0 32px 32px;
+            overflow: hidden;
+        }
+        .top-bar {
+            background: #1b5e1f;
+            color: white;
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo-area { font-weight: bold; font-size: 1.1rem; display: flex; gap: 6px; align-items: center; }
+        .menu-icons { display: flex; gap: 12px; align-items: center; }
+        .icon-btn {
+            background: none; border: none; font-size: 1.3rem; cursor: pointer;
+            color: white; transition: 0.1s;
+        }
+        .points-badge {
+            background: #ffd966; color: #2c4d2c; padding: 4px 10px;
+            border-radius: 40px; font-weight: bold; font-size: 0.7rem;
+        }
+        .profile-avatar {
+            width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+            background: #c8e6c9; border: 2px solid white; cursor: pointer;
+        }
+        .sidebar {
+            position: fixed; top: 0; left: -280px; width: 270px;
+            height: 100%; background: #1a3a1a; color: white; z-index: 200;
+            transition: 0.25s; padding: 24px 16px; border-radius: 0 20px 20px 0;
+            overflow-y: auto;
+        }
+        .sidebar.open { left: 0; }
+        .overlay {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.4); z-index: 150; display: none;
+        }
+        .overlay.active { display: block; }
+        .sidebar a, .sidebar button {
+            display: block; width: 100%; background: #2d6a2d; margin: 12px 0;
+            padding: 10px; border-radius: 40px; text-align: center; color: white;
+            text-decoration: none; border: none; font-weight: 500; cursor: pointer;
+        }
+        .dashboard { padding: 18px 14px; }
+        .card {
+            background: white; border-radius: 28px; box-shadow: 0 5px 14px rgba(0,0,0,0.04);
+            margin-bottom: 22px; padding: 18px 16px; border: 1px solid #d9ecd9;
+        }
+        .card h3 { color: #1e5a1e; margin-bottom: 14px; display: flex; gap: 8px; align-items: center; font-size: 1.15rem; }
+        .form-group { margin-bottom: 14px; }
+        label { font-size: 0.8rem; font-weight: 600; color: #2b5e2b; }
+        input, select, textarea {
+            width: 100%; padding: 10px 14px; border-radius: 40px;
+            border: 1px solid #c8e0c8; background: #fefdf5; margin-top: 5px;
+        }
+        button {
+            background: #2c7a2c; color: white; border: none; padding: 10px 16px;
+            border-radius: 40px; font-weight: 600; cursor: pointer; transition: 0.1s;
+        }
+        .product-item, .req-item {
+            background: #f8fff4; padding: 12px; border-radius: 20px;
+            margin: 12px 0; border-left: 5px solid #4caf50; display: flex; gap: 12px;
+            flex-wrap: wrap; align-items: center;
+        }
+        .crop-img {
+            width: 60px; height: 60px; object-fit: cover; border-radius: 16px;
+            background: #e9f3e9;
+        }
+        .notif-item {
+            background: #fff7e0; padding: 10px 12px; border-radius: 20px; margin: 8px 0;
+            font-size: 0.8rem; border-left: 4px solid #ffb74d;
+        }
+        .chat-window {
+            border: 1px solid #cbe5cb; border-radius: 24px; padding: 12px;
+            background: #fefaf0; max-height: 260px; overflow-y: auto;
+        }
+        .chat-msg {
+            background: #e2f0e2; margin: 8px 0; padding: 8px 14px;
+            border-radius: 24px; font-size: 0.85rem;
+        }
+        .flex-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .warning-card { background: #fff5e6; border-left: 6px solid #ff9800; }
+        .advice-box { background: #eef3ee; border-radius: 20px; padding: 14px; margin-top: 12px; line-height: 1.5; }
+        .partner-avatar-small {
+            width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
+            vertical-align: middle; margin-right: 6px;
+        }
+        footer { text-align: center; font-size: 0.7rem; padding: 16px; color: #558b55; }
+        @media (max-width: 500px) { .card { padding: 14px; } }
+    </style>
+</head>
+<body>
+<div class="app-container" id="appRoot"></div>
+
+<script>
+    // ==================== STORAGE KEYS ====================
+    const STORAGE = {
+        users: "farm_users_db_v2",
+        currentUser: "farm_current_session_v2",
+        products: "farm_products_v4",
+        requirements: "farm_reqs_v4",
+        notifications: "farm_notifications_v4",
+        messages: "farm_messages_v4"
+    };
+
+    function loadData(key, defaultVal = []) {
+        const raw = localStorage.getItem(key);
+        if (!raw) return defaultVal;
+        try { return JSON.parse(raw); } catch(e) { return defaultVal; }
+    }
+    function saveData(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
+
+    let currentUser = null;
+
+    // ========== USER ACCOUNT SYSTEM ==========
+    function initUserDB() {
+        let users = loadData(STORAGE.users, []);
+        if (users.length === 0) {
+            // demo users with profile pics (using emoji fallback + dataURL simulation)
+            users = [
+                { id: "u1", name: "Ramesh Kumar", role: "Farmer", points: 55, email: "ramesh@farm.com", avatarData: null, avatarFallback: "🌾" },
+                { id: "u2", name: "Sita Verma", role: "Buyer", points: 42, email: "sita@market.com", avatarData: null, avatarFallback: "🏪" },
+                { id: "u3", name: "Gopal Singh", role: "Farmer", points: 38, email: "gopal@farm.com", avatarData: null, avatarFallback: "🌱" }
+            ];
+            saveData(STORAGE.users, users);
+        }
+        return users;
+    }
+
+    function saveUserToDB(userObj) {
+        let users = loadData(STORAGE.users, []);
+        const index = users.findIndex(u => u.id === userObj.id);
+        if (index !== -1) users[index] = userObj;
+        else users.push(userObj);
+        saveData(STORAGE.users, users);
+    }
+
+    function getAllUsers() { return loadData(STORAGE.users, []); }
+
+    // Add notification (global + targeted)
+    function addNotification(msg, type = "info", targetUserId = null) {
+        let notifs = loadData(STORAGE.notifications, []);
+        notifs.unshift({
+            id: Date.now() + Math.random(),
+            message: msg,
+            type: type,
+            timestamp: new Date().toLocaleString(),
+            forUserId: targetUserId || "all"
+        });
+        if (notifs.length > 80) notifs.pop();
+        saveData(STORAGE.notifications, notifs);
+        if (currentUser && (targetUserId === currentUser.id || targetUserId === "all")) renderApp();
+    }
+
+    function addPoints(amount, reason) {
+        if (!currentUser) return;
+        currentUser.points = (currentUser.points || 0) + amount;
+        saveUserToDB(currentUser);
+        addNotification(`✨ +${amount} points (${reason})`, "success", currentUser.id);
+        renderApp();
+    }
+
+    // Profile picture upload (convert to base64)
+    function uploadProfilePic(file, callback) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result;
+            currentUser.avatarData = base64;
+            currentUser.avatarFallback = "📷";
+            saveUserToDB(currentUser);
+            addPoints(5, "Uploaded profile picture");
+            renderApp();
+            if(callback) callback();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function getUserAvatarUrl(user) {
+        if (user.avatarData) return user.avatarData;
+        // fallback colored icon with emoji
+        return `https://ui-avatars.com/api/?background=2e7d32&color=fff&name=${encodeURIComponent(user.name.charAt(0))}&bold=true`;
+    }
+
+    // ========== PRODUCT & REQUIREMENTS ==========
+    function addProduct(product) {
+        let products = loadData(STORAGE.products, []);
+        products.push({ ...product, id: Date.now(), farmerId: currentUser.id, farmerName: currentUser.name, date: new Date().toLocaleDateString() });
+        saveData(STORAGE.products, products);
+        addPoints(10, "Posted crop");
+        const allUsers = getAllUsers();
+        const buyerIds = allUsers.filter(u => u.role === "Buyer").map(u => u.id);
+        buyerIds.forEach(bid => {
+            addNotification(`🌾 New crop: ${product.name} (${product.quantity}) by ${currentUser.name}`, "product", bid);
+        });
+        addNotification(`✅ Your crop "${product.name}" listed!`, "success", currentUser.id);
+    }
+
+    function addRequirement(req) {
+        let reqs = loadData(STORAGE.requirements, []);
+        reqs.push({ ...req, id: Date.now(), buyerId: currentUser.id, buyerName: currentUser.name, date: new Date().toLocaleDateString() });
+        saveData(STORAGE.requirements, reqs);
+        addPoints(10, "Posted requirement");
+        const allFarmers = getAllUsers().filter(u => u.role === "Farmer").map(u => u.id);
+        allFarmers.forEach(fid => {
+            addNotification(`🛒 New buy request: ${req.title} by ${currentUser.name}`, "requirement", fid);
+        });
+        addNotification(`📢 Requirement "${req.title}" posted!`, "success", currentUser.id);
+    }
+
+    function getAllProducts() { return loadData(STORAGE.products, []); }
+    function getAllRequirements() { return loadData(STORAGE.requirements, []); }
+    function getMyNotifications() {
+        if (!currentUser) return [];
+        let all = loadData(STORAGE.notifications, []);
+        return all.filter(n => n.forUserId === currentUser.id || n.forUserId === "all");
+    }
+
+    // ========== CHAT SYSTEM ==========
+    function sendMessage(toUserId, text) {
+        if (!currentUser || !text.trim() || !toUserId) return;
+        let msgs = loadData(STORAGE.messages, []);
+        msgs.push({ id: Date.now(), fromId: currentUser.id, fromName: currentUser.name, toId: toUserId, text: text.trim(), time: new Date().toLocaleTimeString() });
+        saveData(STORAGE.messages, msgs);
+        addPoints(2, "Chat message");
+        addNotification(`💬 New message from ${currentUser.name}: "${text.substring(0, 40)}"`, "chat", toUserId);
+        renderApp();
+    }
+    function getConversationWith(userId) {
+        let msgs = loadData(STORAGE.messages, []);
+        return msgs.filter(m => (m.fromId === currentUser.id && m.toId === userId) || (m.fromId === userId && m.toId === currentUser.id));
+    }
+    function getChatPartners() {
+        let msgs = loadData(STORAGE.messages, []);
+        let partnersSet = new Set();
+        msgs.forEach(m => {
+            if (m.fromId === currentUser.id) partnersSet.add(m.toId);
+            if (m.toId === currentUser.id) partnersSet.add(m.fromId);
+        });
+        // Also include users that have listings but no chat yet? We'll add from products/requirements to enable first message
+        const allUsers = getAllUsers();
+        const products = getAllProducts();
+        const requirements = getAllRequirements();
+        if (currentUser.role === "Farmer") {
+            requirements.forEach(req => { if(req.buyerId !== currentUser.id) partnersSet.add(req.buyerId); });
+        } else {
+            products.forEach(prod => { if(prod.farmerId !== currentUser.id) partnersSet.add(prod.farmerId); });
+        }
+        return Array.from(partnersSet).map(pid => {
+            const user = allUsers.find(u => u.id === pid);
+            return user ? { id: user.id, name: user.name, avatar: getUserAvatarUrl(user) } : null;
+        }).filter(Boolean);
+    }
+
+    // ========== SMART CROP ADVISOR ==========
+    function getDetailedCropAdvice(crop) {
+        const cropsData = {
+            Rice: { water: "High (5-10cm standing water)", soil: "Clay loam / silty loam, pH 5.5-6.5", climate: "Warm & humid (22-32°C)", time: "120-150 days", fertilizer: "Nitrogen rich (Urea)" },
+            Wheat: { water: "Moderate (3-4 irrigations)", soil: "Well-drained loamy, pH 6-7.5", climate: "Cool (12-25°C)", time: "100-130 days", fertilizer: "Phosphorus & potash" },
+            Tomato: { water: "Regular, 2.5cm/week", soil: "Well-drained sandy loam, pH 6-6.8", climate: "Warm (20-28°C)", time: "70-85 days", fertilizer: "Compost & NPK 10:10:10" },
+            Sugarcane: { water: "High (every 10-15 days)", soil: "Deep loamy, pH 6.5-7.5", climate: "Tropical (20-35°C)", time: "10-14 months", fertilizer: "Heavy nitrogen" },
+            Sunflower: { water: "Moderate, drought tolerant", soil: "Well-drained loam, pH 6-7.5", climate: "Full sun (20-30°C)", time: "80-120 days", fertilizer: "Low nitrogen" },
+            Marigold: { water: "Moderate", soil: "Sandy loam, pH 6.5-7", climate: "Warm (18-28°C)", time: "50-70 days", fertilizer: "Balanced NPK" },
+            Potato: { water: "Even moisture", soil: "Well-drained sandy loam, pH 5.5-6.5", climate: "Cool (15-20°C)", time: "90-120 days", fertilizer: "High potash" },
+            Chili: { water: "Regular, avoid flooding", soil: "Red laterite/loamy, pH 6-7", climate: "Warm (20-30°C)", time: "70-85 days", fertilizer: "Nitrogen & potash" }
+        };
+        let info = cropsData[crop] || { water: "Medium moisture", soil: "Fertile well-drained", climate: "Mild to warm", time: "3-5 months", fertilizer: "Organic compost" };
+        return `💧 Water: ${info.water}<br>🌱 Soil: ${info.soil}<br>☀️ Climate: ${info.climate}<br>⏳ Duration: ${info.time}<br>🌿 Fertilizer: ${info.fertilizer}`;
+    }
+
+    function getWeatherAdvice() {
+        const month = new Date().getMonth();
+        if (month >= 5 && month <= 8) return "🌧️ Rainy season — Rice, millets are ideal. Ensure proper drainage.";
+        if (month >= 10 || month <= 1) return "❄️ Winter — Wheat, peas, mustard. Protect from frost.";
+        return "☀️ Summer — Irrigate regularly. Grow cucumber, brinjal, use mulching.";
+    }
+
+    // ========== LOGIN / REGISTER ==========
+    function renderLogin() {
+        return `
+            <div style="padding: 30px 18px; text-align:center;">
+                <div style="background:white; border-radius: 48px; padding: 28px 20px;">
+                    <span style="font-size: 3rem;">🌾👥</span>
+                    <h2 style="color:#1f5a1f;">Farmer & Buyer Hub</h2>
+                    <p>Create account or login • Profile picture</p>
+                    <div class="form-group"><label>👤 Full Name</label><input type="text" id="regName" placeholder="e.g., Kavita Farmer"></div>
+                    <div class="form-group"><label>🎯 Role</label><select id="regRole"><option value="Farmer">👨‍🌾 Farmer (Sell Crops)</option><option value="Buyer">🏪 Wholesaler (Buy Bulk)</option></select></div>
+                    <div class="form-group"><label>📧 Email</label><input type="email" id="regEmail" placeholder="you@example.com"></div>
+                    <div class="form-group"><label>🖼️ Profile Picture (optional)</label><input type="file" id="regProfilePic" accept="image/*"></div>
+                    <button id="createAccountBtn" style="width:100%;">🌱 Create / Login Account</button>
+                    <p style="font-size:12px; margin-top:12px;">Existing users auto-login by name+role</p>
+                </div>
+            </div>
+        `;
+    }
+
+    function loginOrRegister(name, role, email, avatarBase64 = null) {
+        let users = getAllUsers();
+        let existing = users.find(u => u.name.toLowerCase() === name.toLowerCase() && u.role === role);
+        if (existing) {
+            currentUser = existing;
+            if(email) currentUser.email = email;
+            if(avatarBase64) { currentUser.avatarData = avatarBase64; }
+            saveUserToDB(currentUser);
+            addNotification(`Welcome back ${currentUser.name}!`, "success", currentUser.id);
+        } else {
+            const newId = "user_" + Date.now() + "_" + Math.random().toString(36).substr(2, 6);
+            currentUser = {
+                id: newId, name, role, points: 35, email: email || "",
+                avatarData: avatarBase64 || null, avatarFallback: role === "Farmer" ? "🌾" : "🏪"
+            };
+            saveUserToDB(currentUser);
+            addNotification(`🎉 New account! Welcome ${currentUser.name}. +35 bonus points`, "success", currentUser.id);
+            addPoints(35, "Welcome bonus");
+        }
+        saveData(STORAGE.currentUser, currentUser);
+        renderApp();
+    }
+
+    // ========== DASHBOARD ==========
+    function renderDashboard() {
+        if (!currentUser) return renderLogin();
+        const isFarmer = currentUser.role === "Farmer";
+        const products = getAllProducts();
+        const requirements = getAllRequirements();
+        const myNotifs = getMyNotifications();
+        const weatherMsg = getWeatherAdvice();
+        const partners = getChatPartners();
+        const userAvatar = getUserAvatarUrl(currentUser);
+
+        return `
+            <div class="top-bar">
+                <div class="logo-area">🌾 Smart Farmer Pro</div>
+                <div class="menu-icons">
+                    <img class="profile-avatar" src="${userAvatar}" alt="profile" onclick="document.getElementById('profileSettingsBtn')?.click();">
+                    <span class="points-badge">⭐ ${currentUser.points || 0}</span>
+                    <button class="icon-btn" id="notifBellBtn">🔔</button>
+                    <button class="icon-btn" id="menuToggleBtn">☰</button>
+                </div>
+            </div>
+            <div id="sidebarMenu" class="sidebar">
+                <div><button id="closeSidebarBtn" style="background:#4f6b4f;">✖ Close</button></div>
+                <button id="profileSettingsBtn">👤 My Account & Change Picture</button>
+                <a href="#" id="aboutLink">ℹ️ About Platform</a>
+                <a href="#" id="askDoubtLink">❓ Ask Google (farming query)</a>
+                <button id="aiChatSideBtn">🤖 AI Farming Assistant</button>
+                <a href="#" id="logoutLink">🚪 Logout</a>
+            </div>
+            <div id="overlay" class="overlay"></div>
+            <div class="dashboard">
+                <div class="card warning-card"><h3>🌦️ Weather & Season Alert</h3><p>${weatherMsg}</p></div>
+                
+                <!-- Smart Crop Advisor -->
+                <div class="card">
+                    <h3>🌱 Smart Crop Advisor (Water+Soil+Climate)</h3>
+                    <div class="flex-row" style="gap:8px;">
+                        <select id="cropSelectAdvice" style="flex:2;">
+                            <option>Rice</option><option>Wheat</option><option>Tomato</option><option>Sugarcane</option>
+                            <option>Sunflower</option><option>Marigold</option><option>Potato</option><option>Chili</option>
+                        </select>
+                        <button id="getAdviceBtn">Get Advice</button>
+                    </div>
+                    <div id="adviceResult" class="advice-box">Select a crop to see detailed guidance</div>
+                </div>
+                
+                ${isFarmer ? `
+                <div class="card">
+                    <h3>🛒 Sell Crop (Upload Image)</h3>
+                    <div class="form-group"><input type="text" id="prodName" placeholder="Crop name"></div>
+                    <div class="form-group"><input type="text" id="prodPrice" placeholder="Price (₹ per kg)"></div>
+                    <div class="form-group"><input type="text" id="prodQty" placeholder="Quantity (kg)"></div>
+                    <div class="form-group"><label>📸 Crop Image (Upload)</label><input type="file" id="cropImageFile" accept="image/*"></div>
+                    <div id="imgPreviewDiv"></div>
+                    <button id="postProductBtn">📢 Post Crop + Notify Buyers</button>
+                </div>
+                ` : `
+                <div class="card">
+                    <h3>🏪 Post Bulk Requirement</h3>
+                    <div class="form-group"><input type="text" id="reqTitle" placeholder="e.g., Need 300kg Wheat"></div>
+                    <div class="form-group"><textarea id="reqDesc" rows="2" placeholder="Details: price expectation, location..."></textarea></div>
+                    <button id="postReqBtn">📢 Post & Alert Farmers</button>
+                </div>
+                `}
+                
+                <!-- Unified Notifications -->
+                <div class="card">
+                    <h3>🔔 All Notifications</h3>
+                    <div id="notifPanel" style="max-height:240px; overflow-y:auto;">
+                        ${myNotifs.length === 0 ? "<p>✨ No notifications yet</p>" : myNotifs.slice(0,8).map(n => `<div class="notif-item">🔔 ${n.message}<br><small>${n.timestamp}</small></div>`).join('')}
+                    </div>
+                </div>
+                
+                <!-- Market Listings with Chat Buttons -->
+                ${!isFarmer ? `<div class="card"><h3>🌾 Farmers' Crop Listings</h3>${products.length===0?"<p>No crops listed.</p>":products.map(p => `<div class="product-item"><img class="crop-img" src="${p.imageUrl || 'https://via.placeholder.com/60?text=Crop'}" onerror="this.src='https://via.placeholder.com/60?text=Crop'"><div><b>${p.name}</b> | ₹${p.price} | ${p.quantity}<br>👨‍🌾 ${p.farmerName}<br><button class="chatWithBtn" data-userid="${p.farmerId}" data-name="${p.farmerName}">💬 Chat with Farmer</button></div></div>`).join('')}</div>` : 
+                `<div class="card"><h3>📦 Buyer Requirements</h3>${requirements.length===0?"<p>No buyer posts yet.</p>":requirements.map(r => `<div class="req-item">📢 ${r.title}<br>${r.desc}<br>Buyer: ${r.buyerName}<button class="chatWithBtn" data-userid="${r.buyerId}" data-name="${r.buyerName}" style="margin-left:10px;">💬 Chat with Buyer</button></div>`).join('')}</div>`}
+                
+                <!-- Chat System with Partner Selection -->
+                <div class="card">
+                    <h3>💬 Direct Chat (Farmer ↔ Buyer)</h3>
+                    <div class="chat-window" id="chatMessagesPreview">Select a partner below to start chatting</div>
+                    <div class="flex-row" style="margin-top:12px; align-items:center;">
+                        <select id="chatPartnerSelect" style="flex:2;">
+                            <option value="">-- Select Partner (Farmer/Buyer) --</option>
+                            ${partners.map(p => `<option value="${p.id}" data-name="${p.name}">${p.name}</option>`).join('')}
+                        </select>
+                        <button id="refreshPartnersBtn" style="background:#4caf50;">🔄 Refresh</button>
+                    </div>
+                    <div class="flex-row" style="margin-top:8px;">
+                        <input type="text" id="chatMsgInput" placeholder="Type your message..." style="flex:3;">
+                        <button id="sendChatBtn">Send</button>
+                    </div>
+                    <div id="liveChatContent" style="margin-top:12px; max-height:200px; overflow-y:auto;"></div>
+                </div>
+                
+                <!-- AI Assistant -->
+                <div class="card" id="aiChatCard">
+                    <h3>🤖 AI Farming Assistant</h3>
+                    <div class="flex-row"><input type="text" id="aiQuestion" placeholder="e.g., best soil for tomato?"><button id="askAiBtn">Ask AI</button><button id="googleFallbackBtn">🔍 Google</button></div>
+                    <div id="aiAnswerBox" style="background:#eef3ee; border-radius:20px; padding:12px; margin-top:12px;">💡 Get instant advice on water, soil, pests, or seasons</div>
+                </div>
+                <footer>🌍 No Middlemen | Profile Pictures | Smart Partner Selector</footer>
+            </div>
+        `;
+    }
+
+    // ========== EVENT HANDLERS ==========
+    function attachEvents() {
+        const menuBtn = document.getElementById("menuToggleBtn");
+        const sidebar = document.getElementById("sidebarMenu");
+        const overlayDiv = document.getElementById("overlay");
+        if(menuBtn) menuBtn.onclick = () => { sidebar.classList.add("open"); overlayDiv.classList.add("active"); };
+        const closeSide = document.getElementById("closeSidebarBtn");
+        if(closeSide) closeSide.onclick = () => { sidebar.classList.remove("open"); overlayDiv.classList.remove("active"); };
+        if(overlayDiv) overlayDiv.onclick = () => { sidebar.classList.remove("open"); overlayDiv.classList.remove("active"); };
+        
+        const profileBtn = document.getElementById("profileSettingsBtn");
+        if(profileBtn) profileBtn.onclick = (e) => {
+            e.preventDefault();
+            let fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.onchange = (ev) => { if(ev.target.files[0]) uploadProfilePic(ev.target.files[0]); };
+            fileInput.click();
+        };
+        document.getElementById("aboutLink")?.addEventListener("click", (e) => { e.preventDefault(); alert("🌾 Farm to Market Connect: Direct selling, no middlemen, transparent pricing, smart crop advisor, profile pictures, and real-time chat."); });
+        document.getElementById("askDoubtLink")?.addEventListener("click", (e) => { e.preventDefault(); let q = prompt("Ask any farming doubt:"); if(q) window.open(`https://www.google.com/search?q=${encodeURIComponent(q+" farming advice")}`, '_blank'); });
+        document.getElementById("logoutLink")?.addEventListener("click", () => { localStorage.removeItem(STORAGE.currentUser); currentUser = null; renderApp(); });
+        
+        // Crop Advice
+        document.getElementById("getAdviceBtn")?.addEventListener("click", () => {
+            const crop = document.getElementById("cropSelectAdvice").value;
+            const advice = getDetailedCropAdvice(crop);
+            document.getElementById("adviceResult").innerHTML = `<strong>🌿 ${crop} Detailed Guide</strong><br>${advice}`;
+            addPoints(5, "Crop advisor");
+        });
+        
+        let currentImageBase64 = null;
+        const cropImageInput = document.getElementById("cropImageFile");
+        if(cropImageInput) cropImageInput.onchange = (e) => {
+            if(e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => { currentImageBase64 = ev.target.result; document.getElementById("imgPreviewDiv").innerHTML = `<img src="${currentImageBase64}" width="70" style="border-radius:16px;">`; };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        };
+        
+        document.getElementById("postProductBtn")?.addEventListener("click", () => {
+            let name = document.getElementById("prodName").value.trim();
+            let price = document.getElementById("prodPrice").value.trim();
+            let qty = document.getElementById("prodQty").value.trim();
+            if(!name || !price || !qty) { alert("Fill all fields"); return; }
+            addProduct({ name, price, quantity: qty, imageUrl: currentImageBase64 || "https://cdn-icons-png.flaticon.com/512/1995/1995572.png" });
+            document.getElementById("prodName").value = ""; document.getElementById("prodPrice").value = ""; document.getElementById("prodQty").value = "";
+            document.getElementById("imgPreviewDiv").innerHTML = ""; currentImageBase64 = null;
+            renderApp();
+        });
+        
+        document.getElementById("postReqBtn")?.addEventListener("click", () => {
+            let title = document.getElementById("reqTitle").value.trim();
+            let desc = document.getElementById("reqDesc").value.trim();
+            if(!title) { alert("Enter requirement"); return; }
+            addRequirement({ title, desc: desc || "Bulk order" });
+            document.getElementById("reqTitle").value = ""; document.getElementById("reqDesc").value = "";
+            renderApp();
+        });
+        
+        // Dynamic chat buttons from listings
+        document.querySelectorAll(".chatWithBtn").forEach(btn => {
+            btn.onclick = () => {
+                const uid = btn.getAttribute("data-userid");
+                if(uid) { const sel = document.getElementById("chatPartnerSelect"); if(sel) { sel.value = uid; refreshChatDisplay(uid); } }
+            };
+        });
+        
+        document.getElementById("sendChatBtn")?.addEventListener("click", () => {
+            const sel = document.getElementById("chatPartnerSelect");
+            const partnerId = sel?.value;
+            const msg = document.getElementById("chatMsgInput")?.value;
+            if(!partnerId || partnerId === "") { alert("Please select a partner from the dropdown"); return; }
+            if(msg.trim()) sendMessage(partnerId, msg);
+            document.getElementById("chatMsgInput").value = "";
+            refreshChatDisplay(partnerId);
+        });
+        
+        document.getElementById("refreshPartnersBtn")?.addEventListener("click", () => { renderApp(); });
+        document.getElementById("chatPartnerSelect")?.addEventListener("change", (e) => refreshChatDisplay(e.target.value));
+        
+        document.getElementById("askAiBtn")?.addEventListener("click", () => {
+            let q = document.getElementById("aiQuestion").value.trim();
+            if(!q) return;
+            let reply = `🌱 For "${q}": Ensure proper soil testing, balanced irrigation, and consult local experts. Use organic fertilizers.`;
+            if(q.toLowerCase().includes("water")) reply = "💧 Most crops need 2.5-5cm water per week. Rice needs more, millets less.";
+            if(q.toLowerCase().includes("soil")) reply = "🌱 Ideal soil: loamy, well-drained, pH 6-7. Add compost for organic matter.";
+            document.getElementById("aiAnswerBox").innerHTML = `🤖 ${reply}`;
+            addPoints(2, "AI query");
+        });
+        document.getElementById("googleFallbackBtn")?.addEventListener("click", () => {
+            let q = document.getElementById("aiQuestion").value.trim();
+            if(q) window.open(`https://www.google.com/search?q=${encodeURIComponent(q+" farming tips")}`, '_blank');
+        });
+        document.getElementById("notifBellBtn")?.addEventListener("click", () => { const n = getMyNotifications(); alert("🔔 Notifications:\n" + (n.length?n.map(x=>x.message).join("\n"):"Empty")); });
+        document.getElementById("aiChatSideBtn")?.addEventListener("click", () => { document.getElementById("aiChatCard")?.scrollIntoView({ behavior: "smooth" }); sidebar.classList.remove("open"); overlayDiv.classList.remove("active"); });
+    }
+    
+    function refreshChatDisplay(partnerId) {
+        if(!partnerId || !currentUser) return;
+        const conversation = getConversationWith(partnerId);
+        const partner = getAllUsers().find(u => u.id === partnerId);
+        const chatDiv = document.getElementById("liveChatContent");
+        if(chatDiv) {
+            if(conversation.length === 0) chatDiv.innerHTML = `<div class="chat-msg">💬 Start chatting with ${partner?.name || "user"}</div>`;
+            else chatDiv.innerHTML = conversation.map(m => `<div class="chat-msg"><strong>${m.fromName}:</strong> ${m.text} <span style="font-size:10px;">${m.time}</span></div>`).join('');
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        }
+    }
+    
+    function renderApp() {
+        const root = document.getElementById("appRoot");
+        if(!root) return;
+        const sessionUser = localStorage.getItem(STORAGE.currentUser);
+        if(sessionUser && !currentUser) currentUser = JSON.parse(sessionUser);
+        if(!currentUser) { 
+            root.innerHTML = renderLogin(); 
+            const createBtn = document.getElementById("createAccountBtn"); 
+            if(createBtn) createBtn.onclick = () => { 
+                const name = document.getElementById("regName").value.trim(); 
+                const role = document.getElementById("regRole").value; 
+                const email = document.getElementById("regEmail").value; 
+                const file = document.getElementById("regProfilePic").files[0]; 
+                if(!name){ alert("Enter name"); return; } 
+                if(file){ const reader = new FileReader(); reader.onload = (e) => loginOrRegister(name, role, email, e.target.result); reader.readAsDataURL(file); } 
+                else { loginOrRegister(name, role, email, null); } 
+            }; 
+            return; 
+        }
+        root.innerHTML = renderDashboard();
+        attachEvents();
+        const partnersList = getChatPartners();
+        const sel = document.getElementById("chatPartnerSelect");
+        if(sel && partnersList.length && !sel.value) sel.value = partnersList[0].id;
+        refreshChatDisplay(sel?.value);
+    }
+    
+    initUserDB();
+    renderApp();
+</script>
+</body>
+</html>
